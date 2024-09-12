@@ -1,0 +1,22 @@
+[
+    {
+        "num": 1,
+        "vMax": 0.4,
+        "xi": [
+            0.17272727272727284,
+            1.8857142857142857,
+            0.0
+        ],
+        "dt": 0.1,
+        "tf": 1000,
+        "B": [
+            0.12077922077922087,
+            1.4051948051948049
+        ],
+        "FlagExperimental": false,
+        "delta": null,
+        "noParqueo": 1,
+        "robot": null,
+        "FlagControlador": true
+    }
+]

@@ -1,0 +1,82 @@
+[
+    {
+        "num": 1,
+        "vMax": 0.13,
+        "xi": [
+            0.6557062736402766,
+            0.9599284503158247,
+            0.0
+        ],
+        "dt": 0.1,
+        "tf": 1000,
+        "B": [
+            3.133114088207346,
+            1.8900743445937134
+        ],
+        "FlagExperimental": false,
+        "delta": 0,
+        "noParqueo": 1,
+        "robot": null,
+        "FlagControlador": true
+    },
+    {
+        "num": 2,
+        "vMax": 0.13,
+        "xi": [
+            0.6288751420745684,
+            0.12816337177886683,
+            0.0
+        ],
+        "dt": 0.1,
+        "tf": 1000,
+        "B": [
+            2.2745178781046795,
+            3.3210680280981566
+        ],
+        "FlagExperimental": false,
+        "delta": 0,
+        "noParqueo": 2,
+        "robot": null,
+        "FlagControlador": true
+    },
+    {
+        "num": 3,
+        "vMax": 0.13,
+        "xi": [
+            1.0223984050382904,
+            3.2584620544448377,
+            0.0
+        ],
+        "dt": 0.1,
+        "tf": 1000,
+        "B": [
+            2.730647114721721,
+            0.30703758221692234
+        ],
+        "FlagExperimental": false,
+        "delta": 0,
+        "noParqueo": 3,
+        "robot": null,
+        "FlagControlador": true
+    },
+    {
+        "num": 4,
+        "vMax": 0.13,
+        "xi": [
+            1.174441483910638,
+            0.950984739793922,
+            0.0
+        ],
+        "dt": 0.1,
+        "tf": 1000,
+        "B": [
+            1.1923289049544432,
+            3.2495183439229347
+        ],
+        "FlagExperimental": false,
+        "delta": 0,
+        "noParqueo": 4,
+        "robot": null,
+        "FlagControlador": true
+    }
+]
