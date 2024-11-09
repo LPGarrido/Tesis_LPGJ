@@ -33,10 +33,28 @@ señales_mostradas = False
 simulacion_en_curso = False
 
 def cargar_senales():
+    """
+    Carga las señales de tráfico desde un archivo JSON y las devuelve como un diccionario.
+
+    Parámetros:
+    None
+
+    Retorno:
+    dict: Un diccionario con los datos de las señales de tráfico cargadas desde el archivo 'senales.json'.
+    """
     with open('senales.json', 'r') as file:
         return json.load(file)
 
 def ocultar_senales(ax):
+    """
+    Oculta todas las señales mostradas en el gráfico actual, eliminando todos los parches dibujados en el eje.
+
+    Parámetros:
+    ax (matplotlib.axes._axes.Axes): El objeto de ejes de matplotlib del cual se van a eliminar los parches que representan las señales.
+
+    Retorno:
+    None: La función no retorna ningún valor, pero elimina todos los parches del eje especificado y actualiza el estado global `señales_mostradas` a `False`.
+    """
     global señales_mostradas
     while ax.patches:
         ax.patches[-1].remove()  # Elimina cada parche del final de la lista
@@ -44,6 +62,15 @@ def ocultar_senales(ax):
     señales_mostradas = False
 
 def toggle_senales(ax):
+    """
+    Alterna la visibilidad de las señales de tráfico en el gráfico. Si las señales están actualmente visibles, las oculta; si no lo están, las dibuja.
+
+    Parámetros:
+    ax (matplotlib.axes._axes.Axes): El objeto de ejes de matplotlib en el cual se alternará la visibilidad de las señales.
+
+    Retorno:
+    None: La función no retorna ningún valor, pero alterna el estado global `señales_mostradas` y, dependiendo de su estado, oculta o dibuja las señales.
+    """
     global señales_mostradas, simulacion_en_curso
     if not simulacion_en_curso:
         if señales_mostradas:
@@ -53,6 +80,24 @@ def toggle_senales(ax):
             señales_mostradas = True
 
 def dibujar_senales(ax):
+    """
+    Dibuja diferentes tipos de señales de tráfico en el gráfico especificado usando los datos cargados desde un archivo JSON.
+
+    Parámetros:
+    ax (matplotlib.axes._axes.Axes): El objeto de ejes de matplotlib en el cual se dibujarán las señales y los obstáculos.
+
+    Retorno:
+    None: La función no retorna ningún valor, pero dibuja rectángulos, hexágonos y círculos en el gráfico para representar señales de tráfico y obstáculos.
+
+    Acciones:
+    - Carga las señales de tráfico desde el archivo 'senales.json'.
+    - Dibuja diferentes tipos de señales en función de su tipo y valor, usando formas geométricas:
+        - "bajarVelocidad": Dibuja un rectángulo de color que depende del valor (rojo, naranja, amarillo o verde).
+        - "alto": Dibuja un hexágono de color rojo.
+        - "semaforo": Dibuja un círculo cuyo color puede ser verde, amarillo o rojo.
+    - También dibuja rectángulos negros para representar obstáculos en posiciones específicas.
+    - Finalmente, actualiza el gráfico utilizando `canvas.draw()`.
+    """
     senales = cargar_senales()
 
     for senal in senales:
@@ -112,6 +157,27 @@ def dibujar_senales(ax):
     canvas.draw()
 
 def crear_nuevo_carro(root, ax, canvas, dt0, K0, tf, G, node_coordinates):
+    """
+    Crea una interfaz gráfica para configurar y agregar un nuevo carro autónomo a la simulación.
+
+    Parámetros:
+    root (tk.Tk or tk.Toplevel): La ventana raíz de la aplicación Tkinter donde se mostrará la interfaz para crear un nuevo carro.
+    ax (matplotlib.axes._axes.Axes): El objeto de ejes de matplotlib donde se dibujarán el punto inicial, punto final, y la trayectoria del carro.
+    canvas (matplotlib.backends.backend_agg.FigureCanvasAgg): El lienzo de matplotlib para actualizar la visualización del gráfico.
+    dt0 (float): Paso de tiempo para la simulación del carro.
+    K0 (float): Ganancia de control inicial (no se usa explícitamente en la función, pero puede ser relevante en cálculos adicionales).
+    tf (float): Tiempo final para la simulación del carro.
+    G (networkx.Graph): El grafo de caminos que puede usar el carro para navegar.
+    node_coordinates (ndarray): Un arreglo numpy que contiene las coordenadas de los nodos del grafo `G`.
+
+    Retorno:
+    None: La función no retorna ningún valor, pero crea un nuevo carro con los parámetros especificados y lo añade a la simulación.
+
+    Acciones:
+    - Crea una ventana emergente para ingresar los parámetros del carro, incluyendo número de robot, velocidad máxima, si es experimental, si usa controlador PID, y el número de parqueo.
+    - Permite al usuario seleccionar puntos iniciales y finales en la gráfica para establecer la trayectoria del carro.
+    - Configura la visualización del carro y lo añade a la lista global de carros para la simulación.
+    """
     def solicitar_punto(title, point_var):
         solicitud = tk.Toplevel(root)
         solicitud.title(title)
@@ -226,6 +292,25 @@ def crear_nuevo_carro(root, ax, canvas, dt0, K0, tf, G, node_coordinates):
 num_terminado = 1
 
 def iniciar_simulacion(canvas, root, label_tiempo):
+    """
+    Inicia la simulación de carros autónomos en un hilo separado y gestiona la actualización de la visualización y la lógica de control de los vehículos.
+
+    Parámetros:
+    canvas (matplotlib.backends.backend_agg.FigureCanvasAgg): El lienzo de matplotlib donde se dibuja y actualiza la simulación en tiempo real.
+    root (tk.Tk or tk.Toplevel): La ventana raíz de la aplicación Tkinter utilizada para controlar la simulación y actualizar la interfaz gráfica.
+    label_tiempo (tk.Label): Etiqueta de Tkinter para mostrar el tiempo actual de simulación.
+
+    Retorno:
+    None: La función no retorna ningún valor, pero actualiza la simulación de los carros, incluyendo su posición, el control de los semáforos y la gestión de obstáculos en tiempo real.
+
+    Acciones:
+    - Crea un hilo separado para ejecutar la simulación, permitiendo que la interfaz gráfica permanezca receptiva.
+    - Actualiza la posición y el estado de cada carro en cada iteración del ciclo de simulación.
+    - Controla los semáforos y realiza cambios en la ruta de los carros cuando se detectan obstáculos.
+    - Realiza la actualización de la gráfica y la etiqueta de tiempo en el hilo principal para sincronizar con la interfaz gráfica.
+    - Guarda las posiciones y velocidades de los carros al finalizar la simulación.
+    - Permite detener la simulación cuando se detecta un alto o cuando se cancela manualmente.
+    """
     global K, carros, G, node_coordinates, dt, tiempo, simulacion_cancelada, lines
 
     simulacion_cancelada = False
@@ -308,10 +393,33 @@ def iniciar_simulacion(canvas, root, label_tiempo):
     threading.Thread(target=run_simulacion).start()
 
 def cancelar_simulacion():
+    """
+    Cancela la simulación en curso estableciendo la bandera global `simulacion_cancelada` a `True`.
+
+    Parámetros:
+    None
+
+    Retorno:
+    None: La función no retorna ningún valor, pero actualiza el estado global de la simulación para detenerla.
+    """
     global simulacion_cancelada
     simulacion_cancelada = True
 
 def guardar_mundo():
+    """
+    Guarda el estado actual del mundo de la simulación, incluyendo todos los carros, en un archivo JSON.
+
+    Parámetros:
+    None
+
+    Retorno:
+    None: La función no retorna ningún valor, pero guarda los datos de los carros en un archivo seleccionado por el usuario.
+    
+    Acciones:
+    - Muestra un cuadro de diálogo para que el usuario elija la ubicación y el nombre del archivo donde se guardará el estado del mundo.
+    - Convierte los objetos `carro` a un formato serializable (diccionarios).
+    - Guarda los datos en un archivo JSON.
+    """
     if not carros:
         print("No hay carros para guardar.")
         return
@@ -334,6 +442,23 @@ def guardar_mundo():
     print(f"Mundo guardado en {filepath}")
 
 def cargar_mundo(ax, canvas, robotat, G, node_coordinates):
+    """
+    Carga el estado del mundo de la simulación desde un archivo JSON y recrea los objetos `carro`.
+
+    Parámetros:
+    ax (matplotlib.axes._axes.Axes): El objeto de ejes de matplotlib en el cual se dibujarán los carros.
+    canvas (matplotlib.backends.backend_agg.FigureCanvasAgg): El lienzo de matplotlib para actualizar la visualización del gráfico.
+    robotat (object): Objeto para la conexión con el sistema Robotat.
+    G (networkx.Graph): El grafo de caminos utilizado en la simulación.
+    node_coordinates (ndarray): Un arreglo numpy que contiene las coordenadas de los nodos del grafo `G`.
+
+    Retorno:
+    None: La función no retorna ningún valor, pero carga el estado de los carros desde el archivo y los dibuja en la simulación.
+
+    Acciones:
+    - Muestra un cuadro de diálogo para que el usuario seleccione el archivo JSON a cargar.
+    - Carga los datos de los carros desde el archivo y crea instancias de los objetos `carro` utilizando los datos cargados.
+    """
     global carros
 
     # Abrir la ventana de diálogo para abrir el archivo

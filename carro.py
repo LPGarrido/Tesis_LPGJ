@@ -3,6 +3,37 @@ from funciones import *
 
 class carro:
     def __init__(self, numero, vMax, xi, dt, tf, B, FlagExperimental, delta, noParqueo, robot, FlagControlador, vehiculo_path, h_robot, robotat, grafo, coordenadasNodos):
+        """
+    Inicializa una instancia de un carro autónomo con todos los parámetros necesarios para la simulación.
+
+    Parámetros:
+    numero (int): Identificador único del robot.
+    vMax (float): Velocidad máxima del carro.
+    xi (array-like): Estado inicial del carro en forma [x, y, orientación].
+    dt (float): Paso de tiempo para la simulación.
+    tf (float): Tiempo final de la simulación.
+    B (array-like): Coordenadas del punto objetivo (destino) del carro.
+    FlagExperimental (bool): Indicador de si el carro está en modo experimental.
+    delta (float): Valor de ajuste de orientación.
+    noParqueo (int): Número del espacio de parqueo asignado.
+    robot (object or None): Objeto del robot, si está en modo experimental (conectado a hardware).
+    FlagControlador (bool): Indicador de si el carro usa un controlador PID (`True`) o Lyapunov (`False`).
+    vehiculo_path (matplotlib.lines.Line2D): Objeto de línea en Matplotlib para visualizar el trayecto del carro.
+    h_robot (matplotlib.patches.Polygon): Objeto de Matplotlib para visualizar la forma del carro.
+    robotat (object): Objeto de conexión a Robotat.
+    grafo (networkx.Graph): El grafo de caminos para la planificación de rutas.
+    coordenadasNodos (ndarray): Coordenadas de los nodos del grafo.
+
+    Retorno:
+    None: Este es un constructor, por lo tanto, no retorna ningún valor, pero inicializa todos los atributos del carro para ser utilizado en la simulación.
+
+    Acciones:
+    - Carga las señales de tráfico desde un archivo JSON.
+    - Establece los estados iniciales del carro, las banderas de control, los parámetros del controlador, y las condiciones de frenado.
+    - Realiza la planificación global de la ruta desde el estado inicial hasta el punto objetivo utilizando el grafo dado.
+    - Configura las propiedades de graficación para la visualización del carro en la simulación.
+    - Inicializa estructuras para almacenar información de la simulación como errores, posiciones y controles.
+    """
         self.no_robot = numero
         # ----------- Senales -------------
         with open('senales.json', 'r') as archivo_json:
@@ -107,6 +138,24 @@ class carro:
         self.cond_frenar = False
 
     def method1(self,k,carros):
+        """
+        Ejecuta el ciclo de planificación de comportamiento, planificación local, y control para un carro autónomo durante un paso de la simulación.
+
+        Parámetros:
+        k (int): El índice de tiempo actual en la simulación.
+        carros (list): Lista de objetos `carro` que representan otros vehículos en la simulación, utilizada para evitar colisiones.
+
+        Retorno:
+        None: La función no retorna ningún valor, pero actualiza el estado del carro, incluyendo su posición, velocidad, y comportamiento basado en el entorno.
+
+        Acciones:
+        - Planificación del comportamiento (fase 1 y 2): Calcula el punto deseado, evalúa señales de tráfico (alto, semáforo, reducir velocidad), y ajusta la velocidad.
+        - Planificación local: Realiza la planificación de rutas para evitar colisiones con otros carros y obstáculos.
+        - Control: Aplica el controlador adecuado (PID o Lyapunov) para seguir la trayectoria deseada y envía los comandos de velocidad al carro.
+        - Actualiza la gráfica: Actualiza la visualización de la trayectoria y la posición del carro en el gráfico.
+        - Almacena datos de la simulación: Guarda los errores, estados, y posiciones del carro para su posterior análisis.
+        - Determina un nuevo punto objetivo si es necesario y maneja la detección de obstáculos y el parqueo automático.
+        """
         """ ---------------- BEHAVIOR PLANNING (1/3) ---------------- """
         self.calucar_punto_deseado()
         self.recorrido[self.idx_almacenar, :] = [self.xi[0], self.xi[1]]
@@ -170,6 +219,21 @@ class carro:
 
 
     def senal_alto(self,k):
+        """
+        Maneja el comportamiento del carro cuando se detecta una señal de alto cercana.
+
+        Parámetros:
+        k (int): El índice de tiempo actual en la simulación.
+
+        Retorno:
+        None: La función no retorna ningún valor, pero actualiza el estado del carro dependiendo de la proximidad y tiempo de la señal de alto.
+
+        Acciones:
+        - Detecta si hay una señal de alto cercana y, de ser así, inicia el tiempo de parada.
+        - Desactiva temporalmente la señal de alto para evitar múltiples paradas innecesarias.
+        - Después de que el tiempo de alto haya transcurrido, reactiva la señal y permite que el carro continúe su movimiento.
+        - Actualiza la condición de frenado (`cond1_frenar`) dependiendo de la presencia de la señal de alto.
+        """
         if not self.alto_cercano:
             self.alto_cercano, id_senal, self.time_alto = hay_senal_de_alto_cerca(self.xi[0], self.xi[1], self.senales)
             if self.alto_cercano:
@@ -194,13 +258,52 @@ class carro:
         self.cond1_frenar = self.alto_cercano
     
     def senal_semaforo(self):
+        """
+        Maneja el comportamiento del carro cuando se detecta un semáforo cercano.
+
+        Parámetros:
+        None
+
+        Retorno:
+        None: La función no retorna ningún valor, pero actualiza la condición de frenado del carro (`cond2_frenar`) dependiendo del color del semáforo detectado.
+
+        Acciones:
+        - Detecta si hay un semáforo cercano.
+        - Si el semáforo es de color rojo o amarillo, activa la condición de frenado (`cond2_frenar`).
+        """
         semaforo_cercano, _, color = hay_semaforo_cerca(self.xi[0], self.xi[1], self.senales)
         self.cond2_frenar = (semaforo_cercano and (color == 'Rojo' or color == 'Amarillo'))
 
     def senal_bajarVel(self):
+        """
+        Ajusta el factor de reducción de velocidad del carro si se detecta una señal de "bajar velocidad" cercana.
+
+        Parámetros:
+        None
+
+        Retorno:
+        None: La función no retorna ningún valor, pero ajusta `factorBajarVel` según la señal de reducción de velocidad detectada.
+
+        Acciones:
+        - Determina si hay una señal de "bajar velocidad" cerca de la posición actual del carro.
+        - Ajusta el factor de velocidad (`factorBajarVel`) para reducir la velocidad del carro de acuerdo con el valor de la señal detectada.
+        """
         self.factorBajarVel = hay_senal_de_bajar_velocidad(self.xi[0], self.xi[1], self.senales)
 
     def calucar_punto_deseado(self):
+        """
+        Calcula el próximo punto deseado al cual el carro debe dirigirse, dependiendo de si el carro está en modo de parqueo o siguiendo su trayectoria normal.
+
+        Parámetros:
+        None
+
+        Retorno:
+        None: La función no retorna ningún valor, pero actualiza los atributos `xg` y `yg` para establecer las coordenadas del próximo punto objetivo.
+
+        Acciones:
+        - Si el carro está en el modo de parqueo (indicador `FlagParqueo3` activado y `FlagParqueo2` desactivado), se establece el punto de parqueo como el objetivo.
+        - En caso contrario, se establece el siguiente punto en la trayectoria (`path`) como el objetivo.
+        """
         if self.FlagParqueo3 and (not self.FlagParqueo2):
             posicion_d = self.parqueos[self.numParqueo-1]
             self.xg = posicion_d[0]
@@ -210,6 +313,21 @@ class carro:
             self.yg = self.path[self.tramo, 1]
 
     def determinar_nuevoPunto(self,k):
+        """
+        Determina el próximo tramo de la trayectoria que el carro debe seguir y actualiza el punto objetivo si se cumplen ciertas condiciones.
+
+        Parámetros:
+        k (int): El índice de tiempo actual en la simulación.
+
+        Retorno:
+        None: La función no retorna ningún valor, pero actualiza el atributo `tramo` y recalcula la ruta si se han evitado obstáculos.
+
+        Acciones:
+        - Incrementa el tramo a seguir en la trayectoria si la distancia al objetivo actual es suficientemente pequeña y no se requiere frenar.
+        - Si el carro alcanza el final de la trayectoria, marca el estado como terminado (`done`).
+        - En caso de haber evitado obstáculos (`caseObstaculos == 3`), recalcula la trayectoria hacia el punto final utilizando la planificación de rutas.
+        - Ajusta la velocidad media y el diferencial si no se está utilizando el controlador PID.
+        """
         if not (self.caseObstaculos == 3):
             if (np.linalg.norm(self.e) < 0.3) and (not self.cond2_frenar):
                 self.tramo = min(self.tramo + self.diferencial, len(self.path) - 1)
@@ -236,6 +354,19 @@ class carro:
                         
 
     def frenar(self):
+        """
+        Detiene el movimiento del carro estableciendo las velocidades de las ruedas y el control a cero.
+
+        Parámetros:
+        None
+
+        Retorno:
+        None: La función no retorna ningún valor, pero actualiza los atributos del carro para detenerlo.
+
+        Acciones:
+        - Establece las velocidades angulares de las ruedas (`wL`, `wR`) y el vector de control (`u`) a cero.
+        - Si el carro está en modo experimental, envía un comando al robot físico para detenerlo utilizando `robotat_3pi_force_stop`.
+        """
         self.wL = 0
         self.wR = 0
         self.u = np.array([0.0, 0.0])
@@ -243,6 +374,19 @@ class carro:
             robotat_3pi_force_stop(self.robot)
     
     def enviarVelocidades(self):
+        """
+        Envía los comandos de velocidad a las ruedas del carro o actualiza su estado utilizando el método Runge-Kutta de cuarto orden.
+
+        Parámetros:
+        None
+
+        Retorno:
+        None: La función no retorna ningún valor, pero actualiza el estado del carro (`xi`) y envía los comandos de velocidad.
+
+        Acciones:
+        - Si el carro está en modo experimental, envía las velocidades de las ruedas (`wL`, `wR`) al robot físico mediante `robotat_3pi_set_wheel_velocities`.
+        - Si el carro no está en modo experimental, utiliza el método Runge-Kutta de cuarto orden para actualizar el estado (`xi`) del carro en función del control aplicado (`u`).
+        """
         if self.experimental:
             robotat_3pi_set_wheel_velocities(self.robot, self.wL, self.wR)
         else:
@@ -253,6 +397,26 @@ class carro:
             self.xi += (self.dt / 6) * (k1 + 2 * k2 + 2 * k3 + k4)
 
     def controlador(self):
+        """
+        Aplica el controlador adecuado (PID o Lyapunov) para calcular las velocidades de referencia del carro basadas en su posición y objetivo actual.
+
+        Parámetros:
+        None
+
+        Retorno:
+        None: La función no retorna ningún valor, pero actualiza el vector de control `u` y las velocidades de las ruedas `wL` y `wR` del carro.
+
+        Acciones:
+        - Calcula el error de posición entre el objetivo actual (`xg`, `yg`) y la posición actual (`xi`).
+        - Si se usa el controlador PID:
+            - Calcula el error de orientación y aplica el control proporcional-integral-derivativo para obtener la velocidad angular (`w`).
+            - Ajusta la velocidad lineal (`v`) en función del error de posición.
+            - Combina ambos controles para establecer los comandos de velocidad (`u`).
+        - Si se usa el controlador Lyapunov:
+            - Calcula el ajuste diferencial para la velocidad y aplica un control basado en matrices (`Kf`) y la cinemática del vehículo.
+            - Determina las velocidades de referencia (`uRef`, `wRef`) usando la inversa del Jacobiano.
+        - Calcula las velocidades de las ruedas (`wL`, `wR`) basándose en los comandos de velocidad obtenidos.
+        """
         self.e = np.array([self.xg - self.xi[0], self.yg - self.xi[1]])
         eP = np.linalg.norm(self.e)
 
@@ -292,6 +456,21 @@ class carro:
         self.wR = min(max((self.u[0] + 39.5 / 1000 * self.u[1]) / (16 / 1000) * 60 / (2 * np.pi), -800), 800)
         
     def parqueoAutomatico(self,k):
+        """
+        Gestiona el proceso de parqueo automático del carro, incluyendo fases intermedias y el ajuste de control.
+
+        Parámetros:
+        k (int): El índice de tiempo actual en la simulación.
+
+        Retorno:
+        None: La función no retorna ningún valor, pero actualiza el estado del carro y su ruta para realizar el parqueo automático.
+
+        Acciones:
+        - Si se completa la trayectoria inicial y se espera un tiempo, inicia el proceso de parqueo.
+        - Ajusta el control y las banderas relacionadas con el proceso de parqueo.
+        - Verifica si el carro está alineado con el objetivo para proceder con la segunda etapa de parqueo.
+        - Marca el proceso de parqueo como completo una vez que el carro llega al objetivo.
+        """
         if self.done and ((self.tiempo[k]-self.timeDone)>10) and (not self.FlagParqueo1):
             self.parqueo()
             self.done = False
@@ -321,6 +500,20 @@ class carro:
             self.k_final = k
     
     def parqueo(self):
+        """
+        Calcula y establece una nueva ruta hacia el punto de parqueo designado.
+
+        Parámetros:
+        None
+
+        Retorno:
+        None: La función no retorna ningún valor, pero actualiza la ruta (`path`) del carro hacia el espacio de parqueo especificado.
+
+        Acciones:
+        - Determina la ruta desde la posición actual del carro hasta el punto de parqueo.
+        - Ajusta la velocidad y el tramo a seguir en función del tipo de controlador utilizado.
+        - Activa la bandera de parqueo para indicar que el proceso ha comenzado.
+        """
         if not self.FlagParqueo1:
             A1 = [self.xi[0], self.xi[1]]
             B1 = self.parqueos[self.numParqueo-1]
@@ -338,6 +531,20 @@ class carro:
 
 
     def parqueo2(self):
+        """
+        Ajusta la trayectoria del carro para acercarse más al espacio de parqueo y suavizar la llegada.
+
+        Parámetros:
+        None
+
+        Retorno:
+        None: La función no retorna ningún valor, pero actualiza la trayectoria (`path`) del carro y establece el proceso de ajuste fino en el parqueo.
+
+        Acciones:
+        - Genera una trayectoria suave desde la posición actual hasta el espacio de parqueo.
+        - Ajusta la velocidad y los parámetros de control para finalizar el parqueo.
+        - Marca el proceso de parqueo como completado y actualiza el estado.
+        """
         if not self.FlagParqueo2:
             A1 = np.array([self.xi[0], self.xi[1]])
             B1 = self.parqueos[self.numParqueo-1]
@@ -359,6 +566,19 @@ class carro:
             self.done = False
 
     def evitar_colision(self, CheckCarros):
+        """
+        Evalúa la proximidad de otros carros y ajusta el factor de velocidad para evitar colisiones.
+
+        Parámetros:
+        CheckCarros (list): Lista de otros carros a verificar para evaluar posibles colisiones.
+
+        Retorno:
+        float: El factor de velocidad ajustado en función de la proximidad de otros carros. Disminuye si hay un carro cercano.
+
+        Acciones:
+        - Verifica la posición relativa de otros carros en el mismo carril para determinar si están demasiado cerca.
+        - Ajusta el factor de velocidad para evitar colisiones.
+        """
         # Inicializar el flag y el factor de velocidad
         flag_proximidad = False
         factor_velocidad = 1.0  # Comenzamos asumiendo que no hay proximidad
@@ -396,9 +616,35 @@ class carro:
         return factor_velocidad
     
     def evitarChoqueCarro(self,carros):
+        """
+        Ajusta el factor de velocidad del carro para evitar colisiones con otros carros en la simulación.
+
+        Parámetros:
+        carros (list): Lista de todos los carros en la simulación.
+
+        Retorno:
+        None: La función no retorna ningún valor, pero ajusta `factorEvitarCarro` basado en la proximidad a otros carros.
+
+        Acciones:
+        - Llama a `evitar_colision` para evaluar y ajustar la velocidad en función de los carros cercanos.
+        """
         self.factorEvitarCarro = self.evitar_colision(carros)
 
     def checkProxObstaculos(self):
+        """
+        Verifica si hay obstáculos en el camino del carro y ajusta el factor de velocidad y la detección de obstáculos en consecuencia.
+
+        Parámetros:
+        None
+
+        Retorno:
+        None: La función no retorna ningún valor, pero actualiza `factorVelObst` y la bandera `obstaculoDetectado1` si hay un obstáculo cercano.
+
+        Acciones:
+        - Recorre los próximos puntos en la trayectoria del carro para identificar la presencia de obstáculos.
+        - Ajusta el factor de velocidad según la proximidad del obstáculo.
+        - Marca un nuevo punto de ruta fuera del obstáculo si es necesario.
+        """
         self.factorVelObst = 1
         self.obstaculoDetectado1 = False
         # Recorrer los siguientes 25 puntos en el camino
@@ -451,6 +697,19 @@ class carro:
             self.obstaculoDetectado1 = True
 
     def ruta_obstaculo2(self):
+        """
+        Recalcula la trayectoria del carro para evitar obstáculos utilizando un enfoque de planificación con esquinas y rutas alternativas.
+
+        Parámetros:
+        None
+
+        Retorno:
+        None: La función no retorna ningún valor, pero actualiza la trayectoria (`path`) del carro para esquivar los obstáculos detectados.
+
+        Acciones:
+        - Identifica posibles rutas alternativas alrededor del obstáculo utilizando puntos intermedios.
+        - Aplica una estrategia de planificación de esquinas para evitar colisiones y continuar hacia el objetivo.
+        """
         rectangulos = np.array([
             [0.50, 0.00, 2.98, 0.40],
             [2.10, 0.50, 2.53, 0.80],
@@ -542,6 +801,19 @@ class carro:
             self.caseObstaculos = 2
 
     def ruta_obstaculo(self):
+        """
+        Genera una nueva ruta hacia el objetivo evitando los obstáculos presentes en el grafo cargado.
+
+        Parámetros:
+        None
+
+        Retorno:
+        None: La función no retorna ningún valor, pero recalcula y suaviza la trayectoria (`path`) del carro para esquivar obstáculos.
+
+        Acciones:
+        - Utiliza un grafo de rutas predefinidas y genera una nueva ruta que evita obstáculos.
+        - Suaviza la nueva ruta generada para asegurar una trayectoria más eficiente.
+        """
         lines = pd.read_csv('Lines.csv').values
         G, node_coordinates = crear_grafo2(lines, self.obstaculos)
         ruta, _ = calcular_ruta(G, node_coordinates, self.xi[0], self.xi[1], 1.7, 0.96)
@@ -593,6 +865,18 @@ class carro:
             self.caseObstaculos = 2
     
     def to_dict(self):
+        """
+        Convierte el objeto carro en un diccionario serializable para guardarlo en un archivo.
+
+        Parámetros:
+        None
+
+        Retorno:
+        dict: Un diccionario que contiene todos los atributos relevantes del carro para ser serializados y guardados.
+
+        Acciones:
+        - Convierte los atributos del carro a un formato adecuado para ser almacenado en un archivo JSON.
+        """
         # Convierte el objeto carro en un diccionario serializable
         return {
             'num': self.no_robot,
@@ -611,6 +895,23 @@ class carro:
 
     @classmethod
     def from_dict(cls, data, ax, canvas, robotat, G, node_coordinates):
+        """
+        Crea un nuevo objeto `carro` a partir de un diccionario previamente serializado.
+
+        Parámetros:
+        data (dict): Diccionario que contiene los atributos del carro.
+        ax (matplotlib.axes._axes.Axes): Objeto de ejes de Matplotlib para graficar el carro.
+        canvas (matplotlib.backends.backend_agg.FigureCanvasAgg): Lienzo de Matplotlib para actualizar la visualización.
+        robotat (object): Objeto de conexión con Robotat.
+        G (networkx.Graph): Grafo de caminos utilizado para la planificación de la ruta.
+        node_coordinates (ndarray): Coordenadas de los nodos del grafo.
+
+        Retorno:
+        cls: Una nueva instancia del objeto `carro` con los atributos restaurados.
+
+        Acciones:
+        - Crea instancias de los elementos gráficos (`vehiculo_path`, `h_robot`) y restaura los atributos del carro desde el diccionario `data`.
+        """
         # Crea un nuevo objeto carro a partir de un diccionario
         xi = np.array(data['xi'])
         
